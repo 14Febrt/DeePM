@@ -2,15 +2,31 @@ class Track {
   final String title;
   final String artist;
   final String src;
+  final bool isAsset;
 
   const Track({
     required this.title,
     required this.artist,
     required this.src,
+    this.isAsset = true,
   });
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'artist': artist,
+        'src': src,
+        'isAsset': isAsset,
+      };
+
+  factory Track.fromJson(Map<String, dynamic> j) => Track(
+        title: j['title'] as String,
+        artist: j['artist'] as String,
+        src: j['src'] as String,
+        isAsset: j['isAsset'] as bool? ?? true,
+      );
 }
 
-const List<Track> myTracks = [
+const List<Track> bundledTracks = [
   Track(title: "Любовь в ресторане", artist: "Riso", src: "music/LOVE.mp3"),
   Track(title: "Roaming", artist: "Big Baby Tape & LOVV66", src: "music/Roaming.mp3"),
   Track(title: "Бойсбэнд", artist: "PhARAOH", src: "music/Boybend.mp3"),

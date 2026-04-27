@@ -1,11 +1,15 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 class AudioManager extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
-  late final ConcatenatingAudioSource _playlist;
+  final List<Track> tracks = [];
   int currentIdx = -1;
   bool isPlaying = false;
   bool isShuffle = false;
@@ -13,35 +17,22 @@ class AudioManager extends ChangeNotifier {
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
   bool _initialized = false;
+  bool get initialized => _initialized;
+
+  static const _prefsKey = 'user_tracks_v1';
 
   Track? get currentTrack =>
-      currentIdx >= 0 && currentIdx < myTracks.length
-          ? myTracks[currentIdx]
-          : null;
+      currentIdx >= 0 && currentIdx < tracks.length ? tracks[currentIdx] : null;
 
   AudioManager() {
     _init();
   }
 
   Future<void> _init() async {
-    _playlist = ConcatenatingAudioSource(
-      children: [
-        for (var i = 0; i < myTracks.length; i++)
-          AudioSource.asset(
-            'assets/${myTracks[i].src}',
-            tag: MediaItem(
-              id: '$i',
-              album: 'DeePM',
-              title: myTracks[i].title,
-              artist: myTracks[i].artist,
-            ),
-          ),
-      ],
-    );
-
-    await _player.setAudioSource(_playlist, preload: false);
-    await _player.setLoopMode(LoopMode.all);
-    _initialized = true;
+    tracks.clear();
+    tracks.addAll(bundledTracks);
+    await _loadUserTracks();
+    await _rebuildPlaylist();
 
     _player.positionStream.listen((p) {
       position = p;
@@ -61,6 +52,119 @@ class AudioManager extends ChangeNotifier {
         notifyListeners();
       }
     });
+
+    _initialized = true;
+    notifyListeners();
+  }
+
+  Future<void> _loadUserTracks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_prefsKey);
+    if (raw == null) return;
+    try {
+      final List<dynamic> arr = jsonDecode(raw);
+      for (final j in arr) {
+        final t = Track.fromJson(j as Map<String, dynamic>);
+        // skip if file no longer exists
+        if (!t.isAsset && !File(t.src).existsSync()) continue;
+        tracks.add(t);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveUserTracks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final user = tracks.where((t) => !t.isAsset).map((t) => t.toJson()).toList();
+    await prefs.setString(_prefsKey, jsonEncode(user));
+  }
+
+  Future<void> _rebuildPlaylist() async {
+    final wasPlaying = _player.playing;
+    final savedIdx = currentIdx;
+    final savedPos = position;
+
+    final source = ConcatenatingAudioSource(
+      children: [
+        for (var i = 0; i < tracks.length; i++)
+          tracks[i].isAsset
+              ? AudioSource.asset(
+                  'assets/${tracks[i].src}',
+                  tag: _mediaItem(i, tracks[i]),
+                )
+              : AudioSource.uri(
+                  Uri.file(tracks[i].src),
+                  tag: _mediaItem(i, tracks[i]),
+                ),
+      ],
+    );
+
+    await _player.setAudioSource(
+      source,
+      preload: false,
+      initialIndex: savedIdx >= 0 && savedIdx < tracks.length ? savedIdx : 0,
+      initialPosition: savedPos,
+    );
+    await _player.setLoopMode(LoopMode.all);
+    if (wasPlaying) {
+      await _player.play();
+    }
+  }
+
+  MediaItem _mediaItem(int i, Track t) => MediaItem(
+        id: '$i-${t.src}',
+        album: 'DeePM',
+        title: t.title,
+        artist: t.artist,
+      );
+
+  Future<bool> addUserTrack({
+    required String filePath,
+    required String title,
+    String artist = 'Неизвестно',
+  }) async {
+    try {
+      // copy to app docs
+      final docs = await getApplicationDocumentsDirectory();
+      final musicDir = Directory('${docs.path}/user_music');
+      if (!musicDir.existsSync()) musicDir.createSync(recursive: true);
+      final fileName = filePath.split(Platform.pathSeparator).last;
+      final destPath = '${musicDir.path}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+      await File(filePath).copy(destPath);
+
+      tracks.add(Track(
+        title: title,
+        artist: artist,
+        src: destPath,
+        isAsset: false,
+      ));
+      await _saveUserTracks();
+      await _rebuildPlaylist();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('addUserTrack error: $e');
+      return false;
+    }
+  }
+
+  Future<void> removeTrack(int idx) async {
+    if (idx < 0 || idx >= tracks.length) return;
+    final t = tracks[idx];
+    if (t.isAsset) return; // can't remove bundled
+    try {
+      final f = File(t.src);
+      if (f.existsSync()) await f.delete();
+    } catch (_) {}
+    tracks.removeAt(idx);
+    await _saveUserTracks();
+    if (currentIdx == idx) {
+      currentIdx = -1;
+      await _player.stop();
+    } else if (currentIdx > idx) {
+      currentIdx -= 1;
+    }
+    await _rebuildPlaylist();
+    notifyListeners();
   }
 
   Future<void> playTrack(int idx) async {
@@ -73,7 +177,7 @@ class AudioManager extends ChangeNotifier {
 
   void togglePlay() {
     if (!_initialized) return;
-    if (currentIdx < 0 && myTracks.isNotEmpty) {
+    if (currentIdx < 0 && tracks.isNotEmpty) {
       playTrack(0);
       return;
     }
@@ -99,7 +203,7 @@ class AudioManager extends ChangeNotifier {
     if (_player.hasPrevious) {
       await _player.seekToPrevious();
     } else {
-      await _player.seek(Duration.zero, index: myTracks.length - 1);
+      await _player.seek(Duration.zero, index: tracks.length - 1);
     }
     await _player.play();
   }
@@ -114,7 +218,6 @@ class AudioManager extends ChangeNotifier {
   void toggleRepeat() {
     if (!_initialized) return;
     isRepeat = !isRepeat;
-    // isRepeat = повтор одного трека; иначе циклический плейлист
     _player.setLoopMode(isRepeat ? LoopMode.one : LoopMode.all);
     notifyListeners();
   }
@@ -124,6 +227,10 @@ class AudioManager extends ChangeNotifier {
       final ms = (percent * duration.inMilliseconds).toInt();
       _player.seek(Duration(milliseconds: ms));
     }
+  }
+
+  void seekToDuration(Duration d) {
+    _player.seek(d);
   }
 
   String formatDuration(Duration d) {

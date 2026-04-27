@@ -19,11 +19,24 @@ class MiniPlayer extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
-        child: GlassContainer(
-          borderRadius: BorderRadius.circular(24),
+        child: Container(
           padding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 12,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xCC1a1a1a),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.18),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.6),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
           child: Row(
             children: [

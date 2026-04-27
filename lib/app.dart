@@ -13,7 +13,6 @@ class DeePMHome extends StatefulWidget {
 
 class _DeePMHomeState extends State<DeePMHome> {
   final AudioManager _audio = AudioManager();
-  int _tabIndex = 0;
 
   @override
   void initState() {
@@ -29,14 +28,29 @@ class _DeePMHomeState extends State<DeePMHome> {
     super.dispose();
   }
 
-  void _switchTab(int idx) {
-    setState(() => _tabIndex = idx);
+  void _openPlayer() {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 250),
+        pageBuilder: (_, __, ___) => PlayerScreen(audio: _audio),
+        transitionsBuilder: (_, anim, __, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+            child: child,
+          );
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final idx = _audio.currentIdx < 0 ? 0 : _audio.currentIdx;
-    // Subtle background tint shift per track
     final hueShift = (idx * 37) % 360;
     final tint =
         HSLColor.fromAHSL(0.04, hueShift.toDouble(), 0.3, 0.5).toColor();
@@ -76,32 +90,23 @@ class _DeePMHomeState extends State<DeePMHome> {
               child: Column(
                 children: [
                   _buildHeader(),
-                  _buildTabs(),
                   Expanded(
-                    child: IndexedStack(
-                      index: _tabIndex,
-                      children: [
-                        LibraryView(
-                          currentIdx: _audio.currentIdx,
-                          onPlay: (i) => _audio.playTrack(i),
-                        ),
-                        PlayerView(audio: _audio),
-                      ],
+                    child: LibraryView(
+                      audio: _audio,
                     ),
                   ),
                 ],
               ),
             ),
-            if (_tabIndex == 0)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: MiniPlayer(
-                  audio: _audio,
-                  onTap: () => _switchTab(1),
-                ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: MiniPlayer(
+                audio: _audio,
+                onTap: _openPlayer,
               ),
+            ),
           ],
         ),
       ),
@@ -153,63 +158,6 @@ class _DeePMHomeState extends State<DeePMHome> {
             fontWeight: FontWeight.w800,
             color: Colors.white,
             letterSpacing: -0.5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabs() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.08),
-        ),
-      ),
-      child: Row(
-        children: [
-          _buildTab('Библиотека', 0),
-          _buildTab('Плеер', 1),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String label, int idx) {
-    final active = _tabIndex == idx;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => _switchTab(idx),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: active
-                ? Colors.white.withOpacity(0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: active
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 15,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : [],
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: active ? Colors.white : AppColors.textSecondary,
-            ),
           ),
         ),
       ),
