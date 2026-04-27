@@ -18,6 +18,7 @@ class AudioManager extends ChangeNotifier {
           : null;
 
   AudioManager() {
+    _player.setReleaseMode(ReleaseMode.stop);
     _player.onPositionChanged.listen((p) {
       position = p;
       notifyListeners();

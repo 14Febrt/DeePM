@@ -97,30 +97,35 @@ class PlayerView extends StatelessWidget {
   Widget _buildProgressBar(double progress) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final barWidth = constraints.maxWidth;
+        final fillWidth = barWidth * progress.clamp(0.0, 1.0);
         return GestureDetector(
           onTapUp: (details) {
-            final percent =
-                details.localPosition.dx / constraints.maxWidth;
-            audio.seekTo(percent.clamp(0.0, 1.0));
+            audio.seekTo(
+                (details.localPosition.dx / barWidth).clamp(0.0, 1.0));
           },
           onHorizontalDragUpdate: (details) {
-            final percent =
-                details.localPosition.dx / constraints.maxWidth;
-            audio.seekTo(percent.clamp(0.0, 1.0));
+            audio.seekTo(
+                (details.localPosition.dx / barWidth).clamp(0.0, 1.0));
           },
           child: Container(
+            width: double.infinity,
             height: 20,
+            color: Colors.transparent,
             alignment: Alignment.center,
-            child: Container(
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: progress.clamp(0.0, 1.0),
-                child: Container(
+            child: Stack(
+              children: [
+                Container(
+                  width: double.infinity,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                Container(
+                  width: fillWidth,
+                  height: 5,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(3),
@@ -132,7 +137,7 @@ class PlayerView extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         );
