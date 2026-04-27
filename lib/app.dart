@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'audio_manager.dart';
 import 'theme.dart';
+import 'widgets/browse_view.dart';
 import 'widgets/library_view.dart';
 import 'widgets/player_view.dart';
 import 'widgets/mini_player.dart';
@@ -13,6 +14,7 @@ class DeePMHome extends StatefulWidget {
 
 class _DeePMHomeState extends State<DeePMHome> {
   final AudioManager _audio = AudioManager();
+  int _tabIndex = 0;
 
   @override
   void initState() {
@@ -90,9 +92,14 @@ class _DeePMHomeState extends State<DeePMHome> {
               child: Column(
                 children: [
                   _buildHeader(),
+                  _buildTabs(),
                   Expanded(
-                    child: LibraryView(
-                      audio: _audio,
+                    child: IndexedStack(
+                      index: _tabIndex,
+                      children: [
+                        LibraryView(audio: _audio),
+                        BrowseView(audio: _audio),
+                      ],
                     ),
                   ),
                 ],
@@ -158,6 +165,52 @@ class _DeePMHomeState extends State<DeePMHome> {
             fontWeight: FontWeight.w800,
             color: Colors.white,
             letterSpacing: -0.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabs() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        children: [
+          _buildTab('Библиотека', 0),
+          _buildTab('Обзор', 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTab(String label, int idx) {
+    final active = _tabIndex == idx;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _tabIndex = idx),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active
+                ? Colors.white.withOpacity(0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: active ? Colors.white : AppColors.textSecondary,
+            ),
           ),
         ),
       ),

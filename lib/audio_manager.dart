@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:path_provider/path_provider.dart';
@@ -143,6 +144,64 @@ class AudioManager extends ChangeNotifier {
       return true;
     } catch (e) {
       debugPrint('addUserTrack error: $e');
+      return false;
+    }
+  }
+
+  /// Stream a remote URL ad-hoc (for preview before adding).
+  Future<void> playStreamUrl(String url, {required String title, required String artist}) async {
+    if (!_initialized) return;
+    final temp = ConcatenatingAudioSource(children: [
+      AudioSource.uri(
+        Uri.parse(url),
+        tag: MediaItem(
+          id: 'preview-$url',
+          album: 'DeePM',
+          title: title,
+          artist: artist,
+        ),
+      ),
+    ]);
+    await _player.setAudioSource(temp);
+    await _player.play();
+  }
+
+  /// Restore the user's library playlist after a preview.
+  Future<void> restoreLibrary() async {
+    await _rebuildPlaylist();
+  }
+
+  /// Download a remote URL into the user library and add as a Track.
+  Future<bool> downloadAndAdd({
+    required String url,
+    required String title,
+    required String artist,
+  }) async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final musicDir = Directory('${docs.path}/user_music');
+      if (!musicDir.existsSync()) musicDir.createSync(recursive: true);
+      final safeName =
+          title.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+      final destPath =
+          '${musicDir.path}/${DateTime.now().millisecondsSinceEpoch}_$safeName.mp3';
+
+      final res = await http.get(Uri.parse(url));
+      if (res.statusCode != 200) return false;
+      await File(destPath).writeAsBytes(res.bodyBytes);
+
+      tracks.add(Track(
+        title: title,
+        artist: artist,
+        src: destPath,
+        isAsset: false,
+      ));
+      await _saveUserTracks();
+      await _rebuildPlaylist();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('downloadAndAdd error: $e');
       return false;
     }
   }
