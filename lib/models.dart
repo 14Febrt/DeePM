@@ -1,0 +1,22 @@
+class Track {
+  final String title;
+  final String artist;
+  final String src;
+
+  const Track({
+    required this.title,
+    required this.artist,
+    required this.src,
+  });
+}
+
+const List<Track> myTracks = [
+  Track(title: "Любовь в ресторане", artist: "Riso", src: "music/LOVE.mp3"),
+  Track(title: "Roaming", artist: "Big Baby Tape & LOVV66", src: "music/Roaming.mp3"),
+  Track(title: "Бойсбэнд", artist: "PhARAOH", src: "music/Boybend.mp3"),
+  Track(title: "Гикаю", artist: "Платина", src: "music/Гикаю.mp3"),
+  Track(title: "Санта Клаус", artist: "Платина", src: "music/Санта Клаус.mp3"),
+  Track(title: "Бай Бай", artist: "LOVV66", src: "music/Бай Бай.mp3"),
+  Track(title: "На посту", artist: "Платина & LIL VAN", src: "music/На посту.mp3"),
+  Track(title: "Улыбаюсь", artist: "SixthSennse", src: "music/Улыбаюсь.mp3"),
+];
