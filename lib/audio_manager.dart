@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
@@ -6,12 +5,14 @@ import 'models.dart';
 
 class AudioManager extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
+  late final ConcatenatingAudioSource _playlist;
   int currentIdx = -1;
   bool isPlaying = false;
   bool isShuffle = false;
   bool isRepeat = false;
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
+  bool _initialized = false;
 
   Track? get currentTrack =>
       currentIdx >= 0 && currentIdx < myTracks.length
@@ -19,6 +20,29 @@ class AudioManager extends ChangeNotifier {
           : null;
 
   AudioManager() {
+    _init();
+  }
+
+  Future<void> _init() async {
+    _playlist = ConcatenatingAudioSource(
+      children: [
+        for (var i = 0; i < myTracks.length; i++)
+          AudioSource.asset(
+            'assets/${myTracks[i].src}',
+            tag: MediaItem(
+              id: '$i',
+              album: 'DeePM',
+              title: myTracks[i].title,
+              artist: myTracks[i].artist,
+            ),
+          ),
+      ],
+    );
+
+    await _player.setAudioSource(_playlist, preload: false);
+    await _player.setLoopMode(LoopMode.all);
+    _initialized = true;
+
     _player.positionStream.listen((p) {
       position = p;
       notifyListeners();
@@ -30,36 +54,25 @@ class AudioManager extends ChangeNotifier {
     _player.playerStateStream.listen((state) {
       isPlaying = state.playing;
       notifyListeners();
-      if (state.processingState == ProcessingState.completed) {
-        if (isRepeat) {
-          playTrack(currentIdx);
-        } else {
-          nextTrack();
-        }
+    });
+    _player.currentIndexStream.listen((idx) {
+      if (idx != null) {
+        currentIdx = idx;
+        notifyListeners();
       }
     });
   }
 
   Future<void> playTrack(int idx) async {
+    if (!_initialized) return;
     currentIdx = idx;
-    final t = myTracks[idx];
-    await _player.stop();
-    await _player.setAudioSource(
-      AudioSource.asset(
-        'assets/${t.src}',
-        tag: MediaItem(
-          id: '$idx',
-          album: 'DeePM',
-          title: t.title,
-          artist: t.artist,
-        ),
-      ),
-    );
+    await _player.seek(Duration.zero, index: idx);
     await _player.play();
     notifyListeners();
   }
 
   void togglePlay() {
+    if (!_initialized) return;
     if (currentIdx < 0 && myTracks.isNotEmpty) {
       playTrack(0);
       return;
@@ -71,33 +84,38 @@ class AudioManager extends ChangeNotifier {
     }
   }
 
-  void nextTrack() {
-    if (myTracks.isEmpty) return;
-    int next;
-    if (isShuffle && myTracks.length > 1) {
-      do {
-        next = Random().nextInt(myTracks.length);
-      } while (next == currentIdx);
+  Future<void> nextTrack() async {
+    if (!_initialized) return;
+    if (_player.hasNext) {
+      await _player.seekToNext();
     } else {
-      next = (currentIdx + 1) % myTracks.length;
+      await _player.seek(Duration.zero, index: 0);
     }
-    playTrack(next);
+    await _player.play();
   }
 
-  void prevTrack() {
-    if (myTracks.isEmpty) return;
-    int prev = currentIdx - 1;
-    if (prev < 0) prev = myTracks.length - 1;
-    playTrack(prev);
+  Future<void> prevTrack() async {
+    if (!_initialized) return;
+    if (_player.hasPrevious) {
+      await _player.seekToPrevious();
+    } else {
+      await _player.seek(Duration.zero, index: myTracks.length - 1);
+    }
+    await _player.play();
   }
 
   void toggleShuffle() {
+    if (!_initialized) return;
     isShuffle = !isShuffle;
+    _player.setShuffleModeEnabled(isShuffle);
     notifyListeners();
   }
 
   void toggleRepeat() {
+    if (!_initialized) return;
     isRepeat = !isRepeat;
+    // isRepeat = повтор одного трека; иначе циклический плейлист
+    _player.setLoopMode(isRepeat ? LoopMode.one : LoopMode.all);
     notifyListeners();
   }
 
