@@ -16,59 +16,6 @@ jobs:
           flutter-version: '3.24.5'
           channel: 'stable'
 
-      - name: Generate App Icon
-        run: |
-          pip3 install Pillow
-          python3 - <<'PYEOF'
-          from PIL import Image, ImageDraw, ImageFont
-          import os
-
-          sizes = {
-              "Icon-App-1024x1024@1x.png": 1024,
-              "Icon-App-76x76@1x.png": 76,
-              "Icon-App-76x76@2x.png": 152,
-              "Icon-App-60x60@2x.png": 120,
-              "Icon-App-60x60@3x.png": 180,
-              "Icon-App-40x40@1x.png": 40,
-              "Icon-App-40x40@2x.png": 80,
-              "Icon-App-40x40@3x.png": 120,
-              "Icon-App-29x29@1x.png": 29,
-              "Icon-App-29x29@2x.png": 58,
-              "Icon-App-29x29@3x.png": 87,
-              "Icon-App-20x20@1x.png": 20,
-              "Icon-App-20x20@2x.png": 40,
-              "Icon-App-20x20@3x.png": 60,
-              "Icon-App-83.5x83.5@2x.png": 167,
-          }
-
-          out = "ios/Runner/Assets.xcassets/AppIcon.appiconset"
-
-          for name, s in sizes.items():
-              img = Image.new("RGB", (s, s))
-              draw = ImageDraw.Draw(img)
-              for y in range(s):
-                  r = int(40 + (25 - 40) * y / s)
-                  g = int(40 + (25 - 40) * y / s)
-                  b = int(42 + (28 - 42) * y / s)
-                  draw.line([(0, y), (s, y)], fill=(r, g, b))
-              for y in range(s):
-                  t = y / s
-                  if t < 0.5:
-                      a = int(30 * (1 - t * 2))
-                      draw.line([(0, y), (s, y)], fill=(40 + a, 40 + a, 42 + a))
-              fs = max(s // 5, 8)
-              try:
-                  font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", fs)
-              except:
-                  font = ImageFont.load_default()
-              bbox = draw.textbbox((0, 0), "DeePM", font=font)
-              tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-              x, y = (s - tw) // 2, (s - th) // 2
-              draw.text((x, y), "DeePM", fill=(255, 255, 255), font=font)
-              img.save(os.path.join(out, name))
-              print(f"Generated {name} ({s}x{s})")
-          PYEOF
-
       - name: Install dependencies
         run: flutter pub get
 
