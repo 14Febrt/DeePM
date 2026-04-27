@@ -31,9 +31,9 @@ class _DeePMHomeState extends State<DeePMHome> {
   void _openPlayer() {
     Navigator.of(context).push(
       PageRouteBuilder(
-        opaque: false,
-        transitionDuration: const Duration(milliseconds: 300),
-        reverseTransitionDuration: const Duration(milliseconds: 250),
+        opaque: true,
+        transitionDuration: const Duration(milliseconds: 280),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
         pageBuilder: (_, __, ___) => PlayerScreen(audio: _audio),
         transitionsBuilder: (_, anim, __, child) {
           return SlideTransition(

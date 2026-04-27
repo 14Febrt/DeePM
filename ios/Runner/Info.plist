@@ -45,6 +45,16 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>DeePM использует доступ к медиатеке для добавления музыки в коллекцию.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>DeePM сохраняет добавленные треки в папку приложения.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>DeePM может использоваться для выбора файлов.</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

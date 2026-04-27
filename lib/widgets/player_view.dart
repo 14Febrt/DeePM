@@ -45,8 +45,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final sliderValue = _dragValue ?? positionMs;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: AnimatedContainer(
+      backgroundColor: const Color(0xFF080808),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onVerticalDragEnd: (details) {
+          // Резкий свайп вниз закрывает плеер
+          final v = details.primaryVelocity ?? 0;
+          if (v > 600) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 1200),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
@@ -149,6 +158,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
