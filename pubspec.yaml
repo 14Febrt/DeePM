@@ -10,7 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  audioplayers: ^5.2.1
+  just_audio: ^0.9.40
+  just_audio_background: ^0.0.1-beta.13
   google_fonts: ^6.1.0
   cupertino_icons: ^1.0.6
 

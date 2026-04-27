@@ -35,30 +35,39 @@ class _DeePMHomeState extends State<DeePMHome> {
 
   @override
   Widget build(BuildContext context) {
+    final idx = _audio.currentIdx < 0 ? 0 : _audio.currentIdx;
+    // Subtle background tint shift per track
+    final hueShift = (idx * 37) % 360;
+    final tint =
+        HSLColor.fromAHSL(0.04, hueShift.toDouble(), 0.3, 0.5).toColor();
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 1200),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment(-0.5, -1),
-            end: Alignment(0.5, 1),
+            begin: const Alignment(-0.5, -1),
+            end: const Alignment(0.5, 1),
             colors: [
-              Color(0xFF1a1a1a),
-              Color(0xFF0d0d0d),
-              Color(0xFF050505),
-              Color(0xFF111111),
+              Color.lerp(const Color(0xFF1a1a1a), tint, 0.6)!,
+              const Color(0xFF0d0d0d),
+              const Color(0xFF050505),
+              Color.lerp(const Color(0xFF111111), tint, 0.4)!,
             ],
-            stops: [0.0, 0.4, 0.7, 1.0],
+            stops: const [0.0, 0.4, 0.7, 1.0],
           ),
         ),
         child: Stack(
           children: [
             _buildOrb(
-              top: -60, right: -60,
+              top: -60 + (idx % 3) * 20.0,
+              right: -60 + (idx % 2) * 30.0,
               size: 280,
               opacity: 0.12,
             ),
             _buildOrb(
-              bottom: 100, left: -40,
+              bottom: 100 + (idx % 4) * 15.0,
+              left: -40 + (idx % 3) * 25.0,
               size: 220,
               opacity: 0.10,
             ),
@@ -107,14 +116,16 @@ class _DeePMHomeState extends State<DeePMHome> {
     required double size,
     required double opacity,
   }) {
-    return Positioned(
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 1500),
+      curve: Curves.easeInOut,
       top: top,
       bottom: bottom,
       left: left,
       right: right,
+      width: size,
+      height: size,
       child: Container(
-        width: size,
-        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: RadialGradient(

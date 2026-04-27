@@ -1,6 +1,7 @@
 import 'dart:math';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'models.dart';
 
 class AudioManager extends ChangeNotifier {
@@ -18,20 +19,23 @@ class AudioManager extends ChangeNotifier {
           : null;
 
   AudioManager() {
-    _player.setReleaseMode(ReleaseMode.stop);
-    _player.onPositionChanged.listen((p) {
+    _player.positionStream.listen((p) {
       position = p;
       notifyListeners();
     });
-    _player.onDurationChanged.listen((d) {
-      duration = d;
+    _player.durationStream.listen((d) {
+      duration = d ?? Duration.zero;
       notifyListeners();
     });
-    _player.onPlayerComplete.listen((_) {
-      if (isRepeat) {
-        playTrack(currentIdx);
-      } else {
-        nextTrack();
+    _player.playerStateStream.listen((state) {
+      isPlaying = state.playing;
+      notifyListeners();
+      if (state.processingState == ProcessingState.completed) {
+        if (isRepeat) {
+          playTrack(currentIdx);
+        } else {
+          nextTrack();
+        }
       }
     });
   }
@@ -40,8 +44,18 @@ class AudioManager extends ChangeNotifier {
     currentIdx = idx;
     final t = myTracks[idx];
     await _player.stop();
-    await _player.play(AssetSource(t.src));
-    isPlaying = true;
+    await _player.setAudioSource(
+      AudioSource.asset(
+        'assets/${t.src}',
+        tag: MediaItem(
+          id: '$idx',
+          album: 'DeePM',
+          title: t.title,
+          artist: t.artist,
+        ),
+      ),
+    );
+    await _player.play();
     notifyListeners();
   }
 
@@ -50,13 +64,11 @@ class AudioManager extends ChangeNotifier {
       playTrack(0);
       return;
     }
-    if (isPlaying) {
+    if (_player.playing) {
       _player.pause();
     } else {
-      _player.resume();
+      _player.play();
     }
-    isPlaying = !isPlaying;
-    notifyListeners();
   }
 
   void nextTrack() {
