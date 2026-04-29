@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../audio_manager.dart';
 import '../theme.dart';
@@ -41,21 +42,34 @@ class MiniPlayer extends StatelessWidget {
           child: Row(
             children: [
               // Mini art
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF111111),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.music_note,
-                    color: Color(0xFF444444),
-                    size: 20,
+              Builder(builder: (_) {
+                final hasArt = track?.artworkPath != null &&
+                    track!.artworkPath!.isNotEmpty &&
+                    File(track.artworkPath!).existsSync();
+                return Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF111111),
+                    borderRadius: BorderRadius.circular(10),
+                    image: hasArt
+                        ? DecorationImage(
+                            image: FileImage(File(track.artworkPath!)),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
-                ),
-              ),
+                  child: hasArt
+                      ? null
+                      : const Center(
+                          child: Icon(
+                            Icons.music_note,
+                            color: Color(0xFF444444),
+                            size: 20,
+                          ),
+                        ),
+                );
+              }),
               const SizedBox(width: 12),
               // Info
               Expanded(

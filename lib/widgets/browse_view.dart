@@ -49,7 +49,12 @@ class _BrowseViewState extends State<BrowseView> {
       _snack('Не удалось получить ссылку на стрим');
       return;
     }
-    await widget.audio.playStreamUrl(url, title: t.title, artist: t.user);
+    await widget.audio.playStreamUrl(
+      url,
+      title: t.title,
+      artist: t.user,
+      artworkUrl: t.artworkLarge,
+    );
   }
 
   Future<void> _download(ScTrack t) async {
@@ -64,6 +69,7 @@ class _BrowseViewState extends State<BrowseView> {
         url: url,
         title: t.title,
         artist: t.user,
+        artworkUrl: t.artworkLarge,
       );
       _snack(ok ? 'Добавлено в коллекцию' : 'Ошибка скачивания');
     } finally {
@@ -73,13 +79,15 @@ class _BrowseViewState extends State<BrowseView> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: const Color(0xFF1a1a1a),
-        behavior: SnackBarBehavior.floating,
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (ctx) => _TopToast(
+        message: msg,
+        onDismissed: () => entry.remove(),
       ),
     );
+    overlay.insert(entry);
   }
 
   @override
@@ -101,7 +109,7 @@ class _BrowseViewState extends State<BrowseView> {
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _doSearch(),
               decoration: InputDecoration(
-                hintText: 'Поиск SoundCloud...',
+                hintText: 'Поиск в DeePM...',
                 hintStyle: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 14,
@@ -151,7 +159,7 @@ class _BrowseViewState extends State<BrowseView> {
     if (_results.isEmpty) {
       return Center(
         child: Text(
-          'Найдите треки на SoundCloud',
+          'Найдите треки в DeePM',
           style: TextStyle(
             color: AppColors.textSecondary.withOpacity(0.7),
             fontSize: 14,
@@ -266,6 +274,105 @@ class _ScItem extends StatelessWidget {
                       color: Colors.white, size: 22),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopToast extends StatefulWidget {
+  final String message;
+  final VoidCallback onDismissed;
+
+  const _TopToast({required this.message, required this.onDismissed});
+
+  @override
+  State<_TopToast> createState() => _TopToastState();
+}
+
+class _TopToastState extends State<_TopToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(0, -1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
+    Future.delayed(const Duration(milliseconds: 1800), () async {
+      if (!mounted) return;
+      await _ctrl.reverse();
+      if (mounted) widget.onDismissed();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top + 8;
+    return Positioned(
+      top: top,
+      left: 20,
+      right: 20,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _fade,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xCC1a1a1a),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.12),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

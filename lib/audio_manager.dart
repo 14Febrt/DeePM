@@ -22,8 +22,15 @@ class AudioManager extends ChangeNotifier {
 
   static const _prefsKey = 'user_tracks_v1';
 
-  Track? get currentTrack =>
-      currentIdx >= 0 && currentIdx < tracks.length ? tracks[currentIdx] : null;
+  Track? _previewTrack;
+  bool _inPreview = false;
+
+  Track? get currentTrack {
+    if (_previewTrack != null) return _previewTrack;
+    return currentIdx >= 0 && currentIdx < tracks.length
+        ? tracks[currentIdx]
+        : null;
+  }
 
   AudioManager() {
     _init();
@@ -31,7 +38,6 @@ class AudioManager extends ChangeNotifier {
 
   Future<void> _init() async {
     tracks.clear();
-    tracks.addAll(bundledTracks);
     await _loadUserTracks();
     await _rebuildPlaylist();
 
@@ -48,7 +54,7 @@ class AudioManager extends ChangeNotifier {
       notifyListeners();
     });
     _player.currentIndexStream.listen((idx) {
-      if (idx != null) {
+      if (idx != null && !_inPreview) {
         currentIdx = idx;
         notifyListeners();
       }
@@ -65,9 +71,20 @@ class AudioManager extends ChangeNotifier {
     try {
       final List<dynamic> arr = jsonDecode(raw);
       for (final j in arr) {
-        final t = Track.fromJson(j as Map<String, dynamic>);
+        var t = Track.fromJson(j as Map<String, dynamic>);
         // skip if file no longer exists
         if (!t.isAsset && !File(t.src).existsSync()) continue;
+        // drop missing artwork reference
+        if (t.artworkPath != null &&
+            t.artworkPath!.isNotEmpty &&
+            !File(t.artworkPath!).existsSync()) {
+          t = Track(
+            title: t.title,
+            artist: t.artist,
+            src: t.src,
+            isAsset: t.isAsset,
+          );
+        }
         tracks.add(t);
       }
     } catch (_) {}
@@ -83,6 +100,12 @@ class AudioManager extends ChangeNotifier {
     final wasPlaying = _player.playing;
     final savedIdx = currentIdx;
     final savedPos = position;
+
+    if (tracks.isEmpty) {
+      await _player.stop();
+      currentIdx = -1;
+      return;
+    }
 
     final source = ConcatenatingAudioSource(
       children: [
@@ -116,6 +139,9 @@ class AudioManager extends ChangeNotifier {
         album: 'DeePM',
         title: t.title,
         artist: t.artist,
+        artUri: (t.artworkPath != null && t.artworkPath!.isNotEmpty)
+            ? Uri.file(t.artworkPath!)
+            : null,
       );
 
   Future<bool> addUserTrack({
@@ -149,8 +175,19 @@ class AudioManager extends ChangeNotifier {
   }
 
   /// Stream a remote URL ad-hoc (for preview before adding).
-  Future<void> playStreamUrl(String url, {required String title, required String artist}) async {
+  Future<void> playStreamUrl(String url,
+      {required String title,
+      required String artist,
+      String? artworkUrl}) async {
     if (!_initialized) return;
+    _inPreview = true;
+    _previewTrack = Track(
+      title: title,
+      artist: artist,
+      src: url,
+      isAsset: false,
+    );
+    notifyListeners();
     final temp = ConcatenatingAudioSource(children: [
       AudioSource.uri(
         Uri.parse(url),
@@ -159,6 +196,9 @@ class AudioManager extends ChangeNotifier {
           album: 'DeePM',
           title: title,
           artist: artist,
+          artUri: (artworkUrl != null && artworkUrl.isNotEmpty)
+              ? Uri.parse(artworkUrl)
+              : null,
         ),
       ),
     ]);
@@ -168,7 +208,10 @@ class AudioManager extends ChangeNotifier {
 
   /// Restore the user's library playlist after a preview.
   Future<void> restoreLibrary() async {
+    _inPreview = false;
+    _previewTrack = null;
     await _rebuildPlaylist();
+    notifyListeners();
   }
 
   /// Download a remote URL into the user library and add as a Track.
@@ -176,25 +219,42 @@ class AudioManager extends ChangeNotifier {
     required String url,
     required String title,
     required String artist,
+    String? artworkUrl,
   }) async {
     try {
       final docs = await getApplicationDocumentsDirectory();
       final musicDir = Directory('${docs.path}/user_music');
       if (!musicDir.existsSync()) musicDir.createSync(recursive: true);
+      final artDir = Directory('${docs.path}/user_artwork');
+      if (!artDir.existsSync()) artDir.createSync(recursive: true);
       final safeName =
           title.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
-      final destPath =
-          '${musicDir.path}/${DateTime.now().millisecondsSinceEpoch}_$safeName.mp3';
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final destPath = '${musicDir.path}/${stamp}_$safeName.mp3';
 
       final res = await http.get(Uri.parse(url));
       if (res.statusCode != 200) return false;
       await File(destPath).writeAsBytes(res.bodyBytes);
+
+      String? artPath;
+      if (artworkUrl != null && artworkUrl.isNotEmpty) {
+        try {
+          final ar = await http.get(Uri.parse(artworkUrl));
+          if (ar.statusCode == 200) {
+            artPath = '${artDir.path}/${stamp}_$safeName.jpg';
+            await File(artPath).writeAsBytes(ar.bodyBytes);
+          }
+        } catch (e) {
+          debugPrint('artwork download error: $e');
+        }
+      }
 
       tracks.add(Track(
         title: title,
         artist: artist,
         src: destPath,
         isAsset: false,
+        artworkPath: artPath,
       ));
       await _saveUserTracks();
       await _rebuildPlaylist();
@@ -214,6 +274,12 @@ class AudioManager extends ChangeNotifier {
       final f = File(t.src);
       if (f.existsSync()) await f.delete();
     } catch (_) {}
+    if (t.artworkPath != null && t.artworkPath!.isNotEmpty) {
+      try {
+        final af = File(t.artworkPath!);
+        if (af.existsSync()) await af.delete();
+      } catch (_) {}
+    }
     tracks.removeAt(idx);
     await _saveUserTracks();
     if (currentIdx == idx) {
@@ -228,6 +294,11 @@ class AudioManager extends ChangeNotifier {
 
   Future<void> playTrack(int idx) async {
     if (!_initialized) return;
+    if (_inPreview) {
+      _inPreview = false;
+      _previewTrack = null;
+      await _rebuildPlaylist();
+    }
     currentIdx = idx;
     await _player.seek(Duration.zero, index: idx);
     await _player.play();

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../audio_manager.dart';
@@ -229,14 +230,28 @@ class _TrackItem extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF1a1a1a),
                 borderRadius: BorderRadius.circular(12),
+                image: (track.artworkPath != null &&
+                        track.artworkPath!.isNotEmpty &&
+                        File(track.artworkPath!).existsSync())
+                    ? DecorationImage(
+                        image: FileImage(File(track.artworkPath!)),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
-              child: Center(
-                child: Icon(
-                  track.isAsset ? Icons.music_note : Icons.library_music,
-                  color: const Color(0xFF666666),
-                  size: 24,
-                ),
-              ),
+              child: (track.artworkPath != null &&
+                      track.artworkPath!.isNotEmpty &&
+                      File(track.artworkPath!).existsSync())
+                  ? null
+                  : Center(
+                      child: Icon(
+                        track.isAsset
+                            ? Icons.music_note
+                            : Icons.library_music,
+                        color: const Color(0xFF666666),
+                        size: 24,
+                      ),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(

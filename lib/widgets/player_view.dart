@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../audio_manager.dart';
 import '../theme.dart';
@@ -167,18 +168,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Widget _buildAlbumArt(BuildContext context) {
     final size =
         (MediaQuery.of(context).size.width * 0.65).clamp(220.0, 320.0);
+    final track = widget.audio.currentTrack;
+    final hasArt = track?.artworkPath != null &&
+        track!.artworkPath!.isNotEmpty &&
+        File(track.artworkPath!).existsSync();
     return GlassContainer(
       borderRadius: BorderRadius.circular(28),
       child: SizedBox(
         width: size,
         height: size,
-        child: const Center(
-          child: Icon(
-            Icons.music_note,
-            size: 72,
-            color: Color(0x4DFFFFFF),
-          ),
-        ),
+        child: hasArt
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: Image.file(
+                  File(track.artworkPath!),
+                  fit: BoxFit.cover,
+                  width: size,
+                  height: size,
+                ),
+              )
+            : const Center(
+                child: Icon(
+                  Icons.music_note,
+                  size: 72,
+                  color: Color(0x4DFFFFFF),
+                ),
+              ),
       ),
     );
   }
