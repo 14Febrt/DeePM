@@ -22,8 +22,31 @@ class AudioManager extends ChangeNotifier {
 
   static const _prefsKey = 'user_tracks_v1';
 
+  String? _docsPath;
   Track? _previewTrack;
   bool _inPreview = false;
+
+  String _toRel(String abs) {
+    final norm = abs.replaceAll('\\', '/');
+    final docs = _docsPath?.replaceAll('\\', '/');
+    if (docs != null && norm.startsWith(docs)) {
+      return norm.substring(docs.length).replaceFirst(RegExp(r'^/'), '');
+    }
+    // Strip up to "Documents/" marker for legacy absolute paths.
+    const marker = '/Documents/';
+    final i = norm.indexOf(marker);
+    if (i >= 0) return norm.substring(i + marker.length);
+    return norm;
+  }
+
+  String _toAbs(String rel) {
+    if (rel.startsWith('/') || RegExp(r'^[A-Za-z]:').hasMatch(rel)) {
+      return rel;
+    }
+    final docs = _docsPath;
+    if (docs == null) return rel;
+    return '$docs/${rel.replaceAll('\\', '/')}';
+  }
 
   Track? get currentTrack {
     if (_previewTrack != null) return _previewTrack;
@@ -38,6 +61,7 @@ class AudioManager extends ChangeNotifier {
 
   Future<void> _init() async {
     tracks.clear();
+    _docsPath = (await getApplicationDocumentsDirectory()).path;
     await _loadUserTracks();
     await _rebuildPlaylist();
 
@@ -71,28 +95,41 @@ class AudioManager extends ChangeNotifier {
     try {
       final List<dynamic> arr = jsonDecode(raw);
       for (final j in arr) {
-        var t = Track.fromJson(j as Map<String, dynamic>);
-        // skip if file no longer exists
-        if (!t.isAsset && !File(t.src).existsSync()) continue;
-        // drop missing artwork reference
-        if (t.artworkPath != null &&
-            t.artworkPath!.isNotEmpty &&
-            !File(t.artworkPath!).existsSync()) {
-          t = Track(
-            title: t.title,
-            artist: t.artist,
-            src: t.src,
-            isAsset: t.isAsset,
-          );
+        final stored = Track.fromJson(j as Map<String, dynamic>);
+        // Resolve potentially-relative paths to absolute (current sandbox).
+        final absSrc = stored.isAsset ? stored.src : _toAbs(stored.src);
+        String? absArt;
+        if (stored.artworkPath != null && stored.artworkPath!.isNotEmpty) {
+          absArt = _toAbs(stored.artworkPath!);
+          if (!File(absArt).existsSync()) absArt = null;
         }
-        tracks.add(t);
+        // skip if media file no longer exists
+        if (!stored.isAsset && !File(absSrc).existsSync()) continue;
+        tracks.add(Track(
+          title: stored.title,
+          artist: stored.artist,
+          src: absSrc,
+          isAsset: stored.isAsset,
+          artworkPath: absArt,
+        ));
       }
     } catch (_) {}
   }
 
   Future<void> _saveUserTracks() async {
     final prefs = await SharedPreferences.getInstance();
-    final user = tracks.where((t) => !t.isAsset).map((t) => t.toJson()).toList();
+    final user = tracks.where((t) => !t.isAsset).map((t) {
+      return {
+        'title': t.title,
+        'artist': t.artist,
+        'src': _toRel(t.src),
+        'isAsset': t.isAsset,
+        'artworkPath':
+            (t.artworkPath != null && t.artworkPath!.isNotEmpty)
+                ? _toRel(t.artworkPath!)
+                : null,
+      };
+    }).toList();
     await prefs.setString(_prefsKey, jsonEncode(user));
   }
 
