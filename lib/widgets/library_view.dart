@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../audio_manager.dart';
 import '../models.dart';
+import '../services/backup.dart';
 import '../theme.dart';
 
 class LibraryView extends StatefulWidget {
@@ -17,6 +19,7 @@ class LibraryView extends StatefulWidget {
 class _LibraryViewState extends State<LibraryView> {
   String _filter = '';
   bool _adding = false;
+  bool _backupBusy = false;
 
   List<MapEntry<int, Track>> get _filtered {
     final list = <MapEntry<int, Track>>[];
@@ -57,6 +60,59 @@ class _LibraryViewState extends State<LibraryView> {
     } finally {
       if (mounted) setState(() => _adding = false);
     }
+  }
+
+  Future<void> _exportBackup() async {
+    if (_backupBusy) return;
+    if (widget.audio.tracks.where((t) => !t.isAsset).isEmpty) {
+      _toast('Коллекция пуста');
+      return;
+    }
+    setState(() => _backupBusy = true);
+    try {
+      final file = await BackupService.exportZip(widget.audio);
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'DeePM backup',
+        text: 'Резервная копия коллекции DeePM',
+      );
+    } catch (e) {
+      _toast('Ошибка экспорта: $e');
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _importBackup() async {
+    if (_backupBusy) return;
+    final res = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+    if (res == null || res.files.isEmpty || res.files.first.path == null) return;
+    setState(() => _backupBusy = true);
+    try {
+      final n = await BackupService.importZip(
+        widget.audio,
+        res.files.first.path!,
+      );
+      _toast(n > 0 ? 'Импортировано треков: $n' : 'Новых треков нет');
+    } catch (e) {
+      _toast('Ошибка импорта: $e');
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: const Color(0xFF1a1a1a),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _confirmDelete(int idx, Track t) async {
@@ -142,29 +198,22 @@ class _LibraryViewState extends State<LibraryView> {
                   ),
                 ),
               ),
-              GestureDetector(
+              _IconBtn(
+                icon: Icons.upload_outlined,
+                busy: _backupBusy,
+                onTap: _exportBackup,
+              ),
+              const SizedBox(width: 8),
+              _IconBtn(
+                icon: Icons.download_outlined,
+                busy: _backupBusy,
+                onTap: _importBackup,
+              ),
+              const SizedBox(width: 8),
+              _IconBtn(
+                icon: Icons.add,
+                busy: _adding,
                 onTap: _pickAndAdd,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.12),
-                    ),
-                  ),
-                  child: _adding
-                      ? const Padding(
-                          padding: EdgeInsets.all(10),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.add,
-                          color: Colors.white, size: 20),
-                ),
               ),
             ],
           ),
@@ -282,6 +331,45 @@ class _TrackItem extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _IconBtn extends StatelessWidget {
+  final IconData icon;
+  final bool busy;
+  final VoidCallback onTap;
+
+  const _IconBtn({
+    required this.icon,
+    required this.busy,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: busy ? null : onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.12),
+          ),
+        ),
+        child: busy
+            ? const Padding(
+                padding: EdgeInsets.all(10),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }

@@ -211,6 +211,15 @@ class AudioManager extends ChangeNotifier {
     }
   }
 
+  /// Append a track whose file already lives in our Documents directory.
+  /// Used by the backup importer.
+  Future<void> addImportedTrack(Track t) async {
+    tracks.add(t);
+    await _saveUserTracks();
+    await _rebuildPlaylist();
+    notifyListeners();
+  }
+
   /// Stream a remote URL ad-hoc (for preview before adding).
   Future<void> playStreamUrl(String url,
       {required String title,
